@@ -73,13 +73,13 @@ function createUserInputReceiver() {
 	};
 	// add event handlers:
 	document.getElementById("nextStep").addEventListener("click", function() {
-		data.q.push(this.id);
+		data.q.push("nextStep");
 	});
 	document.getElementById("toggleAutoPlay").addEventListener("click", function() {
-		data.q.push(this.id);
+		data.q.push("toggleAutoPlay");
 	});
 	document.getElementById("reset").addEventListener("click", function() {
-		data.q.push(this.id);
+		data.q.push("reset");
 	});
 	return data;
 }
@@ -94,57 +94,60 @@ function createState() {
 		isAutoPlayEnabled: false,
 
 		// Below are configurable quantities, but they stay constant at runtime:
-		nRows: 40,
-		nCols: 40,
+		nRows: 40,  // @parameter
+		nCols: 40,  // @parameter
 
 		// below are data fields that represent the physical system:
 		//points: [],
-		matrix: null,    // @microstate
-		step: 0,         // @microstate
-		newMatrix: null, // @cache
-		nZero: 0,        // @statistics
-		ratioZero: 0,    // @statistics
+		currentMatrix: null,  // @microstate
+		nextMatrix: null,     // @cache
+		matrixBuffers: [],    // @cache
+		step: 0,              // @microstate
+		matrix1: null,        // @cache
+		nZero: 0,             // @statistics
+		ratioZero: 0,         // @statistics
 	};
-	state.matrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
-	state.newMatrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	resetState(state);
 	return state;
 }
 
 function resetState(state) {
-	state.matrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
-	state.newMatrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.matrixBuffers[0] = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.matrixBuffers[1] = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.currentMatrix = state.matrixBuffers[0];
+	state.nextMatrix = state.matrixBuffers[1];
 	state.step = 0;
+	state.nZero = state.nRows * state.nCols;
+	state.ratioZero = 1;
 }
 
 function nextStep(state) {
 	// 1. First update microstates:
-	// copy from old to new:
+	// copy from current to next:
 	for (var r = 0; r < state.nRows; r++) {
 		for (var c = 0; c < state.nCols; c++) {
-			state.newMatrix[r][c] = state.matrix[r][c];
+			state.nextMatrix[r][c] = state.currentMatrix[r][c];
 		}
 	}
 	// update the new matrix:
 	var u = Math.floor(Math.random() * state.nRows * state.nCols);
 	var r = Math.floor(u / state.nCols);
 	var c = u % state.nCols;
-	if (state.newMatrix[r][c] === 1) {
-		state.newMatrix[r][c] = 0;
+	if (state.nextMatrix[r][c] === 1) {
+		state.nextMatrix[r][c] = 0;
 	}
 	else {
-		state.newMatrix[r][c] = 1;
+		state.nextMatrix[r][c] = 1;
 	}
-	// copy from new to old:
-	for (var r = 0; r < state.nRows; r++) {
-		for (var c = 0; c < state.nCols; c++) {
-			state.matrix[r][c] = state.newMatrix[r][c];
-		}
-	}
-	// 2. Then update statistics (energy, temperature, etc):
+	// buffer swap (https://gameprogrammingpatterns.com/double-buffer.html):
+	var temp = state.currentMatrix;
+	state.currentMatrix = state.nextMatrix;
+	state.nextMatrix = temp;
+	// 2. Then re-compute statistics (energy, temperature, etc) based on `currentMatrix`:
 	state.nZero = 0;
 	for (var r = 0; r < state.nRows; r++) {
 		for (var c = 0; c < state.nCols; c++) {
-			if (state.matrix[r][c] === 0) {
+			if (state.currentMatrix[r][c] === 0) {
 				state.nZero += 1;
 			}
 		}
@@ -154,7 +157,6 @@ function nextStep(state) {
 }
 
 function updateState(state, input, uptime) {
-	var dt = uptime - state.uptime;
 	// read inputs from user:
 	while (input.q.length > 0) {
 		var ev = input.q.shift();
@@ -189,7 +191,7 @@ function updateState(state, input, uptime) {
 	state.uptime = uptime;
 }
 
-function paintState(state, cc, uptime) {
+function renderState(state, cc, uptime) {
 	if (uptime - state.uptimeDisplayLastRefreshedAt > 1000) {
 		document.getElementById("uptimeDisplay").innerText = (uptime/1000).toFixed(3);
 		state.uptimeDisplayLastRefreshedAt = uptime;
@@ -208,7 +210,7 @@ function paintState(state, cc, uptime) {
 	var slotSize = Math.ceil(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
 	for (var r = 0; r < state.nRows; r++) {
 		for (var c = 0; c < state.nCols; c++) {
-			if (state.matrix[r][c] === 1) {
+			if (state.currentMatrix[r][c] === 1) {
 				var x = r * slotSize;
 				var y = c * slotSize;
 				cc.fillRect(x, y, slotSize, slotSize);
@@ -226,7 +228,7 @@ function paintState(state, cc, uptime) {
 	var renderContext = document.getElementById("c").getContext("2d");
 	var loop = function (t) {
 		updateState(state, input, t);
-		paintState(state, renderContext, t);
+		renderState(state, renderContext, t);
 		window.requestAnimationFrame(loop);
 	}
 	loop(0);
