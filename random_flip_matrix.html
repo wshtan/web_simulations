@@ -26,18 +26,29 @@ canvas {
 <div id="app">
 	<table class="layout">
 		<tr>
+			<td colspan="2" style="text-align:center;">
+				<canvas id="c" width="600px" height="600px"></canvas>
+			</td>
+		</tr>
+		<tr>
 			<td>
 				<div>
-					control
-					<button id="nextStep">
-						Next step
-					</button>
-					<button id="toggleAutoPlay">
-						Toggle auto play
-					</button>
-					<button id="reset">
-						Reset
-					</button>
+					<p>control</p>
+					<p>
+						<button id="nextStep">
+							Next step
+						</button>
+						<button id="toggleAutoPlay">
+							Toggle auto play
+						</button>
+						<button id="reset">
+							Reset
+						</button>
+					<p>
+					<p>
+						<input type="number" id="nColsInput" placeholder="10">
+						<button id="setMatrixSize">Set matrix size</button>
+					</p>
 				</div>
 			</td>
 			<td>
@@ -53,44 +64,47 @@ canvas {
 		</tr>
 		<tr>
 			<td colspan="2">
-				<canvas id="c" width="800px" height="600px"></canvas>
+				<h1 style="text-align:center;">Random flip matrix</h1>
 			</td>
 		</tr>
 	</table>
 </div>
 <script>
-// js
+/* Created by Weishu Tan <wtan@umail.ucsb.edu>, 2024 */
 
 function print() {
 	//console.log(...arguments);
 }
 
-// state:
-
 function createUserInputReceiver() {
 	var data = {
-		q: [],  // the event queue
+		eventQueue: [],  // the event queue
 	};
 	// add event handlers:
 	document.getElementById("nextStep").addEventListener("click", function() {
-		data.q.push("nextStep");
+		data.eventQueue.push("nextStep");
 	});
 	document.getElementById("toggleAutoPlay").addEventListener("click", function() {
-		data.q.push("toggleAutoPlay");
+		data.eventQueue.push("toggleAutoPlay");
 	});
 	document.getElementById("reset").addEventListener("click", function() {
-		data.q.push("reset");
+		data.eventQueue.push("reset");
+	});
+	document.getElementById("setMatrixSize").addEventListener("click", function() {
+		data.eventQueue.push("setMatrixSize");
 	});
 	return data;
 }
 
 function createState() {
 	var state = {
+		// The time since last browser refresh. This quantity is
+		// unrelated to the physical system that we are trying to simulate
 		uptime: 0,
 		uptimeDisplayLastRefreshedAt: 0,
 		shouldRepaintCanvas: true,
-		canvasWidth: 800,
-		canvasHeight: 600,
+		canvasWidth : 600,  // px
+		canvasHeight: 600,  // px
 		isAutoPlayEnabled: false,
 
 		// Below are configurable quantities, but they stay constant at runtime:
@@ -122,15 +136,18 @@ function resetState(state) {
 function nextStep(state) {
 	// 1. First update microstates:
 	// copy from current to next:
-	for (var r = 0; r < state.nRows; r++) {
-		for (var c = 0; c < state.nCols; c++) {
+	var u = Math.floor(Math.random() * state.nRows * state.nCols);
+	var r;
+	var c;
+	var temp;
+	for (r = 0; r < state.nRows; r++) {
+		for (c = 0; c < state.nCols; c++) {
 			state.nextMatrix[r][c] = state.currentMatrix[r][c];
 		}
 	}
 	// update the new matrix:
-	var u = Math.floor(Math.random() * state.nRows * state.nCols);
-	var r = Math.floor(u / state.nCols);
-	var c = u % state.nCols;
+	r = Math.floor(u / state.nCols);
+	c = u % state.nCols;
 	if (state.nextMatrix[r][c] === 1) {
 		state.nextMatrix[r][c] = 0;
 	}
@@ -138,13 +155,13 @@ function nextStep(state) {
 		state.nextMatrix[r][c] = 1;
 	}
 	// buffer swap (https://gameprogrammingpatterns.com/double-buffer.html):
-	var temp = state.currentMatrix;
+	temp = state.currentMatrix;
 	state.currentMatrix = state.nextMatrix;
 	state.nextMatrix = temp;
 	// 2. Then re-compute statistics (energy, temperature, etc) based on `currentMatrix`:
 	state.nZero = 0;
-	for (var r = 0; r < state.nRows; r++) {
-		for (var c = 0; c < state.nCols; c++) {
+	for (r = 0; r < state.nRows; r++) {
+		for (c = 0; c < state.nCols; c++) {
 			if (state.currentMatrix[r][c] === 0) {
 				state.nZero += 1;
 			}
@@ -156,8 +173,10 @@ function nextStep(state) {
 
 function updateState(state, input, uptime) {
 	// read inputs from user:
-	while (input.q.length > 0) {
-		var ev = input.q.shift();
+	var ev;
+	var matrixSize;
+	while (input.eventQueue.length > 0) {
+		ev = input.eventQueue.shift();
 		print(ev);
 		if (ev === "nextStep") {
 			if (!state.isAutoPlayEnabled) {
@@ -178,6 +197,23 @@ function updateState(state, input, uptime) {
 			resetState(state);
 			state.shouldRepaintCanvas = true;
 		}
+		else if (ev === "setMatrixSize") {
+			matrixSize = parseInt(document.getElementById("nColsInput").value);
+			print(matrixSize);
+			if (isNaN(matrixSize)) {
+				matrixSize = 10; // default value
+			}
+			else if (matrixSize < 1) {
+				matrixSize = 1;  // cannot be less than 1
+			}
+			else if (matrixSize > 600) {
+				matrixSize = 600;  // cannot be greater than 600 (because the canvas only has 600x600 pixels)
+			}
+			state.nCols = matrixSize;
+			state.nRows = matrixSize;
+			resetState(state);
+			state.shouldRepaintCanvas = true;
+		}
 	}
 	// do updates:
 	if (state.isAutoPlayEnabled && uptime - state.autoPlayLastUpdatedAt > 50) {
@@ -190,6 +226,11 @@ function updateState(state, input, uptime) {
 }
 
 function renderState(state, cc, uptime) {
+	var r;
+	var c;
+	var x;
+	var y;
+	var slotSize;
 	if (uptime - state.uptimeDisplayLastRefreshedAt > 1000) {
 		document.getElementById("uptimeDisplay").innerText = (uptime/1000).toFixed(3);
 		state.uptimeDisplayLastRefreshedAt = uptime;
@@ -201,16 +242,16 @@ function renderState(state, cc, uptime) {
 	print("repaint");
 	document.getElementById("isAutoPlayEnabledDisplay").innerText = state.isAutoPlayEnabled;
 	document.getElementById("stepDisplay").innerText = state.step;
-	document.getElementById("ratioZeroDisplay").innerText = state.ratioZero;
+	document.getElementById("ratioZeroDisplay").innerText = (state.ratioZero).toFixed(3);
 	document.getElementById("nZeroDisplay").innerText = state.nZero;
 	cc.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
 	//cc.fillStyle = '#0f0';
-	var slotSize = Math.ceil(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
-	for (var r = 0; r < state.nRows; r++) {
-		for (var c = 0; c < state.nCols; c++) {
+	slotSize = Math.floor(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
+	for (r = 0; r < state.nRows; r++) {
+		for (c = 0; c < state.nCols; c++) {
 			if (state.currentMatrix[r][c] === 1) {
-				var x = r * slotSize;
-				var y = c * slotSize;
+				x = r * slotSize;
+				y = c * slotSize;
 				cc.fillRect(x, y, slotSize, slotSize);
 			}
 		}
@@ -218,15 +259,13 @@ function renderState(state, cc, uptime) {
 	state.shouldRepaintCanvas = false;
 }
 
-// :
-
 (function () {
 	var input = createUserInputReceiver();
 	var state = createState();
 	var renderContext = document.getElementById("c").getContext("2d");
-	var loop = function (t) {
-		updateState(state, input, t);
-		renderState(state, renderContext, t);
+	var loop = function (uptime) {
+		updateState(state, input, uptime);
+		renderState(state, renderContext, uptime);
 		window.requestAnimationFrame(loop);
 	}
 	loop(0);
