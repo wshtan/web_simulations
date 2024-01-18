@@ -94,16 +94,14 @@ function createState() {
 		isAutoPlayEnabled: false,
 
 		// Below are configurable quantities, but they stay constant at runtime:
-		nRows: 40,  // @parameter
-		nCols: 40,  // @parameter
+		nRows: 10,  // @parameter
+		nCols: 10,  // @parameter
 
 		// below are data fields that represent the physical system:
-		//points: [],
-		currentMatrix: null,  // @microstate
-		nextMatrix: null,     // @cache
 		matrixBuffers: [],    // @cache
+		nextMatrix: null,     // @cache
+		currentMatrix: null,  // @microstate
 		step: 0,              // @microstate
-		matrix1: null,        // @cache
 		nZero: 0,             // @statistics
 		ratioZero: 0,         // @statistics
 	};
@@ -206,7 +204,7 @@ function renderState(state, cc, uptime) {
 	document.getElementById("ratioZeroDisplay").innerText = state.ratioZero;
 	document.getElementById("nZeroDisplay").innerText = state.nZero;
 	cc.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
-	cc.fillState = '#0f0';
+	//cc.fillStyle = '#0f0';
 	var slotSize = Math.ceil(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
 	for (var r = 0; r < state.nRows; r++) {
 		for (var c = 0; c < state.nCols; c++) {
