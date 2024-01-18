@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>Random Flip Matrix</title>
+<style>
+#app { top: 0; left: 0; margin: 0; padding: 0; max-width: 100%; }
+table.layout {
+	width: 100%;
+	/* border: 1px solid; */
+}
+
+table.layout td {
+	border: 1px solid;
+}
+
+canvas {
+	width: 100%;
+}
+
+</style>
+</head>
+
+<body>
+<div id="app">
+	<table class="layout">
+		<tr>
+			<td>
+				<div>
+					control
+					<button id="nextStep">
+						Next step
+					</button>
+					<button id="toggleAutoPlay">
+						Toggle auto play
+					</button>
+					<button id="reset">
+						Reset
+					</button>
+				</div>
+			</td>
+			<td>
+				<div>
+					<p> system state </p>
+					<p> Uptime: <span id="uptimeDisplay"></span> [sec] </p>
+					<p> isAutoPlayEnabled: <span id="isAutoPlayEnabledDisplay"></span> </p>
+					<p> step: <span id="stepDisplay"></span> </p>
+					<p> ratioZero: <span id="ratioZeroDisplay"></span> </p>
+					<p> nZero: <span id="nZeroDisplay"></span> </p>
+				</div>
+			</td>
+		</tr>
+		<tr>
+			<td colspan="2">
+				<canvas id="c" width="800px" height="600px"></canvas>
+			</td>
+		</tr>
+	</table>
+</div>
+<script>
+// js
+
+function print() {
+	//console.log(...arguments);
+}
+
+// state:
+
+function createUserInputReceiver() {
+	var data = {
+		q: [],  // the event queue
+	};
+	// add event handlers:
+	document.getElementById("nextStep").addEventListener("click", function() {
+		data.q.push(this.id);
+	});
+	document.getElementById("toggleAutoPlay").addEventListener("click", function() {
+		data.q.push(this.id);
+	});
+	document.getElementById("reset").addEventListener("click", function() {
+		data.q.push(this.id);
+	});
+	return data;
+}
+
+function createState() {
+	var state = {
+		uptime: 0,
+		uptimeDisplayLastRefreshedAt: 0,
+		shouldRepaintCanvas: true,
+		canvasWidth: 800,
+		canvasHeight: 600,
+		isAutoPlayEnabled: false,
+
+		// Below are configurable quantities, but they stay constant at runtime:
+		nRows: 40,
+		nCols: 40,
+
+		// below are data fields that represent the physical system:
+		//points: [],
+		matrix: null,    // @microstate
+		step: 0,         // @microstate
+		newMatrix: null, // @cache
+		nZero: 0,        // @statistics
+		ratioZero: 0,    // @statistics
+	};
+	state.matrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.newMatrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	return state;
+}
+
+function resetState(state) {
+	state.matrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.newMatrix = new Array(state.nRows).fill(0).map(function () { return new Array(state.nCols).fill(0) });
+	state.step = 0;
+}
+
+function nextStep(state) {
+	// 1. First update microstates:
+	// copy from old to new:
+	for (var r = 0; r < state.nRows; r++) {
+		for (var c = 0; c < state.nCols; c++) {
+			state.newMatrix[r][c] = state.matrix[r][c];
+		}
+	}
+	// update the new matrix:
+	var u = Math.floor(Math.random() * state.nRows * state.nCols);
+	var r = u / state.nCols;
+	var c = u % state.nCols;
+	if (state.newMatrix[r][c] === 1) {
+		state.newMatrix[r][c] = 0;
+	}
+	else {
+		state.newMatrix[r][c] = 1;
+	}
+	// copy from new to old:
+	for (var r = 0; r < state.nRows; r++) {
+		for (var c = 0; c < state.nCols; c++) {
+			state.matrix[r][c] = state.newMatrix[r][c];
+		}
+	}
+	// 2. Then update statistics (energy, temperature, etc):
+	state.nZero = 0;
+	for (var r = 0; r < state.nRows; r++) {
+		for (var c = 0; c < state.nCols; c++) {
+			if (state.matrix[r][c] === 0) {
+				state.nZero += 1;
+			}
+		}
+	}
+	state.ratioZero = state.nZero / (state.nRows * state.nCols);
+	state.step += 1;
+}
+
+function updateState(state, input, uptime) {
+	var dt = uptime - state.uptime;
+	// read inputs from user:
+	while (input.q.length > 0) {
+		var ev = input.q.shift();
+		print(ev);
+		if (ev === "nextStep") {
+			if (!state.isAutoPlayEnabled) {
+				nextStep(state);
+				state.shouldRepaintCanvas = true;
+			}
+		}
+		else if (ev === "toggleAutoPlay") {
+			state.isAutoPlayEnabled = !state.isAutoPlayEnabled;
+			if (state.isAutoPlayEnabled) {
+				// update immediately
+				nextStep(state);
+				state.autoPlayLastUpdatedAt = uptime;
+			}
+			state.shouldRepaintCanvas = true;
+		}
+		else if (ev === "reset") {
+			resetState(state);
+			state.shouldRepaintCanvas = true;
+		}
+	}
+	// do updates:
+	if (state.isAutoPlayEnabled && uptime - state.autoPlayLastUpdatedAt > 50) {
+		nextStep(state);
+		state.shouldRepaintCanvas = true;
+		state.autoPlayLastUpdatedAt = uptime;
+	}
+	// finalize:
+	state.uptime = uptime;
+}
+
+function paintState(state, cc, uptime) {
+	if (uptime - state.uptimeDisplayLastRefreshedAt > 1000) {
+		document.getElementById("uptimeDisplay").innerText = (uptime/1000).toFixed(3);
+		state.uptimeDisplayLastRefreshedAt = uptime;
+	}
+	if (!state.shouldRepaintCanvas) {
+		return;
+	}
+	// repaint all the points:
+	print("repaint");
+	document.getElementById("isAutoPlayEnabledDisplay").innerText = state.isAutoPlayEnabled;
+	document.getElementById("stepDisplay").innerText = state.step;
+	document.getElementById("ratioZeroDisplay").innerText = state.ratioZero;
+	document.getElementById("nZeroDisplay").innerText = state.nZero;
+	cc.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
+	cc.fillState = '#0f0';
+	var slotSize = Math.ceil(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
+	for (var r = 0; r < state.nRows; r++) {
+		for (var c = 0; c < state.nCols; c++) {
+			if (state.matrix[r][c] === 1) {
+				var x = r * slotSize;
+				var y = c * slotSize;
+				cc.fillRect(x, y, slotSize, slotSize);
+			}
+		}
+	}
+	state.shouldRepaintCanvas = false;
+}
+
+// :
+
+(function () {
+	var input = createUserInputReceiver();
+	var state = createState();
+	var renderContext = document.getElementById("c").getContext("2d");
+	var loop = function (t) {
+		updateState(state, input, t);
+		paintState(state, renderContext, t);
+		window.requestAnimationFrame(loop);
+	}
+	loop(0);
+})();
+
+</script>
+</body>
+</html>
