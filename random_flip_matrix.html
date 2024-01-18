@@ -126,7 +126,7 @@ function nextStep(state) {
 	}
 	// update the new matrix:
 	var u = Math.floor(Math.random() * state.nRows * state.nCols);
-	var r = u / state.nCols;
+	var r = Math.floor(u / state.nCols);
 	var c = u % state.nCols;
 	if (state.newMatrix[r][c] === 1) {
 		state.newMatrix[r][c] = 0;
