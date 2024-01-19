@@ -2,17 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
 <title>Random Flip Matrix</title>
 <style>
 #app { top: 0; left: 0; margin: 0; padding: 0; max-width: 100%; }
+
 table.layout {
 	width: 100%;
+	border-spacing: 0;
 	/* border: 1px solid; */
 }
 
+table.layout tr, table.layout td {
+	margin: 0;
+	padding: 0;
+}
+
 table.layout td {
-	border: 1px solid;
+	border: 1px solid #ccc;
 }
 
 canvas {
@@ -23,50 +30,64 @@ canvas {
 </head>
 
 <body>
-<div id="app">
+<div id="app" style="max-width:600px;">
 	<table class="layout">
-		<tr>
-			<td colspan="2" style="text-align:center;">
-				<canvas id="c" width="600px" height="600px"></canvas>
-			</td>
-		</tr>
-		<tr>
-			<td>
-				<div>
-					<p>control</p>
-					<p>
-						<button id="nextStep">
-							Next step
-						</button>
-						<button id="toggleAutoPlay">
-							Toggle auto play
-						</button>
-						<button id="reset">
-							Reset
-						</button>
-					<p>
-					<p>
-						<input type="number" id="nColsInput" placeholder="10">
-						<button id="setMatrixSize">Set matrix size</button>
-					</p>
-				</div>
-			</td>
-			<td>
-				<div>
-					<p> system state </p>
-					<p> Uptime: <span id="uptimeDisplay"></span> [sec] </p>
-					<p> isAutoPlayEnabled: <span id="isAutoPlayEnabledDisplay"></span> </p>
-					<p> step: <span id="stepDisplay"></span> </p>
-					<p> ratioZero: <span id="ratioZeroDisplay"></span> </p>
-					<p> nZero: <span id="nZeroDisplay"></span> </p>
-				</div>
-			</td>
-		</tr>
-		<tr>
-			<td colspan="2">
-				<h1 style="text-align:center;">Random flip matrix</h1>
-			</td>
-		</tr>
+		<colgroup span="12"></colgroup>
+		<tbody>
+			<tr>
+				<td colspan="12" style="text-align:center;width:100%">
+					<canvas id="c" width="600px" height="600px"></canvas>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="6">
+					<div>
+						<p>control</p>
+						<p>
+							<button data-on-click="nextStep">
+								Next step
+							</button>
+							<button data-on-click="toggleAutoPlay">
+								Toggle auto play
+							</button>
+							<button data-on-click="reset">
+								Reset
+							</button>
+						<p>
+						<p>
+							<input type="number" id="nColsInput" placeholder="10">
+							<button data-on-click="setMatrixSize">Set matrix size</button>
+						</p>
+					</div>
+				</td>
+				<td colspan="6">
+					<div>
+						<p> system state </p>
+						<p> Uptime: <span id="uptimeDisplay"></span> [sec] </p>
+						<p> isAutoPlayEnabled: <span id="isAutoPlayEnabledDisplay"></span> </p>
+						<p> step: <span id="stepDisplay"></span> </p>
+						<p> ratioZero: <span id="ratioZeroDisplay"></span> </p>
+						<p> nZero: <span id="nZeroDisplay"></span> </p>
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="12">
+					<h1 style="text-align:center;">Random flip matrix</h1>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations/blob/main/random_flip_matrix.html">[Source code]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations">[Other simulations]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://wshtan.github.io">[My blog]</a>
+				</td>
+			</tr>
+		<tbody>
 	</table>
 </div>
 <script>
@@ -81,17 +102,11 @@ function createUserInputReceiver() {
 		eventQueue: [],  // the event queue
 	};
 	// add event handlers:
-	document.getElementById("nextStep").addEventListener("click", function() {
-		data.eventQueue.push("nextStep");
-	});
-	document.getElementById("toggleAutoPlay").addEventListener("click", function() {
-		data.eventQueue.push("toggleAutoPlay");
-	});
-	document.getElementById("reset").addEventListener("click", function() {
-		data.eventQueue.push("reset");
-	});
-	document.getElementById("setMatrixSize").addEventListener("click", function() {
-		data.eventQueue.push("setMatrixSize");
+	document.querySelectorAll("[data-on-click]").forEach(function (el) {
+		el.addEventListener("click", function (e) {
+			e.preventDefault();
+			data.eventQueue.push(e.target.dataset.onClick);
+		});
 	});
 	return data;
 }
@@ -245,7 +260,6 @@ function renderState(state, cc, uptime) {
 	document.getElementById("ratioZeroDisplay").innerText = (state.ratioZero).toFixed(3);
 	document.getElementById("nZeroDisplay").innerText = state.nZero;
 	cc.clearRect(0, 0, state.canvasWidth, state.canvasHeight);
-	//cc.fillStyle = '#0f0';
 	slotSize = Math.floor(Math.min(state.canvasWidth, state.canvasHeight) / Math.max(state.nRows, state.nCols));
 	for (r = 0; r < state.nRows; r++) {
 		for (c = 0; c < state.nCols; c++) {
