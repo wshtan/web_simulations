@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
+
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<!--
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://unpkg.com/konva@8.4.2/konva.min.js"></script>
+-->
+<script src="https://unpkg.com/vue@3"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+
+<title>Lorenz Attractor</title>
+<style>
+#app { top: 0; left: 0; margin: 0; padding: 0; max-width: 100%; }
+
+table.layout {
+	width: 100%;
+	border-spacing: 0;
+	/* border: 1px solid; */
+}
+
+table.layout tr, table.layout td {
+	margin: 0;
+	padding: 0;
+}
+
+table.layout td {
+	border: 1px solid #ccc;
+}
+
+canvas {
+	width: 100%;
+}
+
+</style>
+</head>
+
+<body>
+<div id="app">
+	<table class="layout">
+		<colgroup span="12"></colgroup>
+		<tbody>
+			<tr>
+				<td colspan="6" style="text-align:center;width:50%;">
+					<!-- <canvas id="c" width="600px" height="600px"></canvas> -->
+					<div id="currentStatePlot" style="width:100%;"></div>
+				</td>
+				<td colspan="6" style="text-align:center;width:50%;">
+					<div id="phasePlot" style="width:100%;"></div>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="6">
+					<div>
+						<p>control</p>
+						<p>
+							<button @click="handleNextStep"> Next step </button>
+							<button @click="handleToggleAutoPlay"> {{ isPlaying ? 'pause' : 'autoplay' }} </button>
+							<button @click="handleReset"> Reset </button>
+						<p>
+					</div>
+				</td>
+				<td colspan="6">
+					<div>
+						<p> system state </p>
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="12">
+					<h1 style="text-align:center;">Lorenz attractor</h1>
+					<p>
+					Taken from <a href="https://plotly.com/javascript/animations/">https://plotly.com/javascript/animations/</a>
+					</p>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations/blob/main/lorenz_attractor.html">[Source code]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations">[Other simulations]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://wshtan.github.io">[My blog]</a>
+				</td>
+			</tr>
+		<tbody>
+	</table>
+</div>
+<script>
+/* Created by Weishu Tan <wtan@umail.ucsb.edu>, 2024 */
+
+function print() {
+	console.log(...arguments);
+}
+
+function createState() {
+	var state = {
+		// lorentz attractor (https://plotly.com/javascript/animations/):
+		n: 100,
+		x: [],
+		y: [],
+		z: [],
+		t: 0,
+		dt: 0.015,
+	};
+	resetState(state);
+	return state;
+}
+
+function resetState(state) {
+	state.t = 0;
+	for (var i = 0; i < state.n; i ++) {
+		state.x[i] = Math.random() * 2 - 1;
+		state.y[i] = Math.random() * 2 - 1;
+		state.z[i] = 30 + Math.random() * 10;
+	}
+}
+
+function gotoNextStep(state) {
+	var s = 10;
+	var b = 8/3;
+	var r = 28;
+	var dx;
+	var dy;
+	var dz;
+	var xh;
+	var yh;
+	var zh;
+	var x = state.x;
+	var y = state.y;
+	var z = state.z;
+	var dt = state.dt;
+	for (var i = 0; i < state.n; i++) {
+		dx = s * (y[i] - x[i]);
+		dy = x[i] * (r - z[i]) - y[i];
+		dz = x[i] * y[i] - b * z[i];
+		xh = x[i] + dx * dt * 0.5;
+		yh = y[i] + dy * dt * 0.5;
+		zh = z[i] + dz * dt * 0.5;
+
+		dx = s * (yh - xh);
+		dy = xh * (r - zh) - yh;
+		dz = xh * yh - b * zh;
+
+		x[i] += dx * dt;
+		y[i] += dy * dt;
+		z[i] += dz * dt;
+	}
+	state.t += state.dt;
+}
+
+// --
+
+var app = Vue.createApp({
+	data() {
+		return {
+			animationTimePoints: [],
+			animationFrames: [],
+
+			currentAnimationFrameIndex: -1,
+			isPlaying: false,
+
+			// --
+
+			state: createState(),
+		};
+	},
+	methods: {
+		handleNextStep() {
+			print('next step');
+			if (! this.isPlaying) {
+				this.nextFrame();
+			}
+		},
+		handleToggleAutoPlay() {
+			this.isPlaying = !this.isPlaying;
+			print('toggle auto play');
+		},
+		handleReset() {
+			print('reset');
+			resetState(this.state);
+			this.updatePlot();
+		},
+		updatePlot() {
+			Plotly.animate(
+				'currentStatePlot',
+				{ data: [{ x: this.state.x, y: this.state.z }] },
+				{
+					transition: { duration: 0 },
+					frame: { duration: 0, redraw: false },
+				}
+			);
+		},
+		nextFrame() {
+			gotoNextStep(this.state);
+			this.updatePlot();
+		}
+	},
+	mounted() {
+		print('hello', 'world');
+		Plotly.newPlot(
+			'phasePlot',
+			[{x: [1, 2, 3], y: [2, 4, 6], mode: 'markers'}],
+			{ xaxis: { range: [-4, 4] }, yaxis: { range: [-10, 10] } }
+		);
+		Plotly.newPlot(
+			'currentStatePlot',
+			[{x: this.state.x , y: this.state.z , mode: 'markers'}],
+			{ xaxis: { range: [-40, 40] }, yaxis: { range: [0, 60] } }
+		);
+		const loop = () => {
+			if (this.isPlaying) {
+				this.nextFrame();
+			}
+			requestAnimationFrame(loop);
+		};
+		requestAnimationFrame(loop);
+	}
+});
+
+app.mount('#app');
+
+</script>
+</body>
+</html>

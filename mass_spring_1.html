@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
+
+<script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+<!--
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<script src="https://unpkg.com/konva@8.4.2/konva.min.js"></script>
+-->
+<script src="https://unpkg.com/vue@3"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+
+<title>Mass-Spring - 01</title>
+<style>
+#app { top: 0; left: 0; margin: 0; padding: 0; max-width: 100%; }
+
+table.layout {
+	width: 100%;
+	border-spacing: 0;
+	/* border: 1px solid; */
+}
+
+table.layout tr, table.layout td {
+	margin: 0;
+	padding: 0;
+}
+
+table.layout td {
+	border: 1px solid #ccc;
+}
+
+canvas {
+	width: 100%;
+}
+
+</style>
+</head>
+
+<body>
+<div id="app">
+	<table class="layout">
+		<colgroup span="12"></colgroup>
+		<tbody>
+			<tr>
+				<td colspan="6" style="text-align:center;width:50%;">
+					<!-- <canvas id="c" width="600px" height="600px"></canvas> -->
+					<div id="currentStatePlot" style="width:100%;"></div>
+				</td>
+				<td colspan="6" style="text-align:center;width:50%;">
+					<div id="phasePlot" style="width:100%;"></div>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="6">
+					<div>
+						<p>
+							spring constant (K): <input type="number" v-model="springConstant" placeholder="1"></input><br/>
+							spring relaxed length (L): <input type="number" v-model="springRelaxedLength" placeholder="3"></input><br/>
+							object mass (M): <input type="number" v-model="objectMass" placeholder="1"></input><br/>
+							initial velocity (v0): <input type="number" v-model="initialVelocity" placeholder="1"></input><br/>
+						</p>
+						<p>
+							<button @click="handleNextStep"> Next step </button>
+							<button @click="handleToggleAutoPlay"> {{ isPlaying ? 'pause' : 'go' }} </button>
+							<button @click="handleReset"> Reset </button>
+						<p>
+					</div>
+				</td>
+				<td colspan="6">
+					<div>
+						<p> system state </p>
+						position (q): {{state.q.toFixed(2)}}, momentum (p): {{state.p.toFixed(2)}}, energy (E): {{state.E.toFixed(2)}}
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="12">
+					<h1 style="text-align:center;">Mass-Spring 01</h1>
+				</td>
+			</tr>
+			<tr>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations/blob/main/mass_spring_1.html">[Source code]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://github.com/wshtan/web_simulations">[Other simulations]</a>
+				</td>
+				<td colspan="4">
+					<a href="https://wshtan.github.io">[My blog]</a>
+				</td>
+			</tr>
+		<tbody>
+	</table>
+</div>
+<script>
+/* Created by Weishu Tan <wtan@umail.ucsb.edu>, 2024 */
+
+function print() {
+	console.log(...arguments);
+}
+
+function createState() {
+	var state = {
+		t: 0,
+		dt: 0.015,
+		K: 1,  // the spring constant,
+		L: 1,  // the relaxed length of the spring. The fixed-end of the spring is at (-L, 0). The object is at (0,0) initially.
+		M: 3,  // the mass of the object
+		q: 0,  // the position of the object
+		v: 0,  // the velocity of the object (comparing to momentum, velocity is easier to do the simulation)
+		p: 0,  // @computed the momentum of the object
+		E: 0,  // @computed the total energy,
+	};
+	resetState(state, 1, 1, 3);
+	return state;
+}
+
+function resetState(state, params) {
+	state.K = params.K;
+	state.L = params.L;
+	state.M = params.M;
+	state.t = 0;
+	state.q = 0;
+	state.v = params.v0;
+	state.p = 0;
+	state.E = state.K * state.q * state.q / 2 + state.M * state.v * state.v / 2;
+}
+
+function gotoNextStep(state) {
+	// compute force:
+	var force = -state.K * state.q;
+	var acceleration = force / state.M;
+	state.v += acceleration * state.dt;
+	state.q += state.v * state.dt;
+	state.p = state.M * state.v;
+	state.E = state.K * state.q * state.q / 2 + state.M * state.v * state.v / 2;
+	state.t += state.dt;
+}
+
+// --
+
+var app = Vue.createApp({
+	data() {
+		return {
+			springConstant: 1,
+			springRelaxedLength: 1,
+			objectMass: 3,
+			initialVelocity: 0,
+			animationTimePoints: [],
+			animationFrames: [],
+
+			currentAnimationFrameIndex: -1,
+			isPlaying: false,
+
+			// --
+
+			state: createState(),
+		};
+	},
+	methods: {
+		handleNextStep() {
+			print('next step');
+			this.nextFrame();
+		},
+		handleToggleAutoPlay() {
+			this.isPlaying = !this.isPlaying;
+			print('toggle auto play');
+		},
+		handleReset() {
+			print('reset');
+			resetState(this.state, { K: this.springConstant, L: this.springRelaxedLength, M: this.objectMass, v0: this.initialVelocity });
+			this.drawPlots();
+		},
+		drawPlots() {
+			Plotly.animate(
+				'currentStatePlot',
+				{ data: [{ x: [this.state.q], y: [0] }] },
+				{
+					transition: { duration: 0 },
+					frame: { duration: 0, redraw: false },
+				}
+			);
+			Plotly.animate(
+				'phasePlot',
+				{ data: [{ x: [this.state.q], y: [this.state.p] }] },
+				{
+					transition: { duration: 0 },
+					frame: { duration: 0, redraw: false },
+				}
+			);
+		},
+		nextFrame() {
+			gotoNextStep(this.state);
+			this.drawPlots();
+		}
+	},
+	mounted() {
+		print('hello', 'world');
+		Plotly.newPlot(
+			'phasePlot',
+			[{x: [this.state.q], y: [this.state.p], mode: 'markers'}],
+			{ title: { text: 'Phase space' }, xaxis: { range: [0, 2], title: { text: 'q (position)' }}, yaxis: { title: { text: 'p (momentum)' }, range: [-1, 1] } }
+		);
+		Plotly.newPlot(
+			'currentStatePlot',
+			[{x: [this.state.q] , y: [0] , mode: 'markers'}],
+			{ xaxis: { range: [0, 3] }, yaxis: { range: [-1, 1] } }
+		);
+		const loop = () => {
+			if (this.isPlaying) {
+				this.nextFrame();
+			}
+			requestAnimationFrame(loop);
+		};
+		requestAnimationFrame(loop);
+	}
+});
+
+app.mount('#app');
+
+</script>
+</body>
+</html>
